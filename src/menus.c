@@ -86,7 +86,7 @@ s8 D_800E86C4[12] = {0, 0, 1, 2, 3, 4, 5, 6, 0, 0, 0, 0};
 s8 D_800E86D0[16] = {0}; // this doesn't make a lot of sense...
 s8 unref_800E86E0[4] = {0, 0, 0, 1};
 
-u32 sVIGammaOffDitherOn = OS_VI_GAMMA_OFF | OS_VI_DITHER_FILTER_ON;
+u32 sVIGammaOffDitherOn = OS_VI_GAMMA_OFF | OS_VI_DITHER_FILTER_OFF;
 
 /*** Const/rodata Data ***/
 // used to set gScreenModeSelection; might be smaller; could be function static data

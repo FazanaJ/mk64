@@ -228,9 +228,9 @@ void init_rdp(void) {
     gDPSetAlphaCompare(gDisplayListHead++, G_AC_NONE);
     gDPSetRenderMode(gDisplayListHead++, G_RM_OPA_SURF, G_RM_OPA_SURF2);
     gDPSetBlendMask(gDisplayListHead++, 0xFF);
-    gDPSetColorDither(gDisplayListHead++, G_CD_DISABLE);
+    gDPSetColorDither(gDisplayListHead++, G_CD_MAGICSQ);
     gDPPipeSync(gDisplayListHead++);
-    gSPClipRatio(gDisplayListHead++, FRUSTRATIO_1);
+    gSPClipRatio(gDisplayListHead++, FRUSTRATIO_2);
 }
 
 UNUSED void func_802A40A4(void) {}

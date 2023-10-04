@@ -446,7 +446,9 @@ void display_and_vsync(void) {
     osRecvMesg(&gGfxVblankQueue, &gMainReceivedMesg, OS_MESG_BLOCK);
     exec_display_list(&gGfxPool->spTask);
     profiler_log_thread5_time(AFTER_DISPLAY_LISTS);
-    osRecvMesg(&gGameVblankQueue, &gMainReceivedMesg, OS_MESG_BLOCK);
+    if (gMainMenuSelectionDepth == 0) {
+        osRecvMesg(&gGameVblankQueue, &gMainReceivedMesg, OS_MESG_BLOCK);
+    }
     osViSwapBuffer((void *) PHYSICAL_TO_VIRTUAL(gPhysicalFramebuffers[sRenderedFramebuffer]));
     profiler_log_thread5_time(THREAD5_END);
     osRecvMesg(&gGameVblankQueue, &gMainReceivedMesg, OS_MESG_BLOCK);
@@ -535,6 +537,96 @@ void setup_game_memory(void) {
     gFreeMemoryResetAnchor = gNextFreeMemoryAddress;
 }
 
+#include "profiler.h"
+#define    OS_CLOCK_RATE        62500000LL
+#define    OS_CPU_COUNTER        (OS_CLOCK_RATE*3/4)
+#define OS_CYCLES_TO_USEC(c)    (((u32)(c)*(1000000LL/15625LL))/(OS_CPU_COUNTER/15625LL))
+#define FRAMETIME_COUNT 30
+#define PROFILER_COUNT 60
+
+u8 gFPS = 30;
+OSTime frameTimes[FRAMETIME_COUNT];
+u8 curFrameTimeIndex = 0;
+extern s16 gCurrentFrameIndex1;
+extern struct ProfilerFrameData gProfilerFrameData[2];
+u8 gShowProfilerNew = TRUE;
+u32 totalCPUReads[PROFILER_COUNT + 2];
+u32 totalRSPReads[PROFILER_COUNT + 2];
+u32 totalRDPReads[PROFILER_COUNT + 2];
+u8 perfIteration = 0;
+
+// Call once per frame
+void calculate_and_update_fps(void) {
+    OSTime newTime = osGetTime();
+    OSTime oldTime = frameTimes[curFrameTimeIndex];
+    frameTimes[curFrameTimeIndex] = newTime;
+
+    curFrameTimeIndex++;
+    if (curFrameTimeIndex >= FRAMETIME_COUNT) {
+        curFrameTimeIndex = 0;
+    }
+    gFPS = (FRAMETIME_COUNT * 1000000.0f) / (s32)OS_CYCLES_TO_USEC(newTime - oldTime);
+}
+
+extern s16 D_800DC668;
+
+void render_profiler(void) {
+    struct ProfilerFrameData *profiler;
+    u32 clockStart;
+    u32 levelScriptDuration;
+    u32 renderDuration;
+    u32 soundDuration;
+    u32 taskStart;
+    s32 i;
+    u32 cpuTime;
+    taskStart = 0;
+    profiler = &gProfilerFrameData[D_800DC668 ^ 1];
+    clockStart = profiler->gameTimes[0] <= profiler->soundTimes[0] ? profiler->gameTimes[0] : profiler->soundTimes[0];
+    levelScriptDuration = profiler->gameTimes[1] - clockStart;
+    renderDuration = profiler->gameTimes[2] - profiler->gameTimes[1];
+    profiler->numSoundTimes &= 0xFFFE;
+    for (i = 0; i < profiler->numSoundTimes; i += 2) {
+        // calculate sound duration of max - min
+        soundDuration = profiler->soundTimes[i + 1] - profiler->soundTimes[i];
+        taskStart += soundDuration;
+        // was the sound time minimum less than level script execution?
+        if (profiler->soundTimes[i] < profiler->gameTimes[1]) {
+            // overlay the levelScriptDuration onto the profiler by subtracting the soundDuration.
+            levelScriptDuration -= soundDuration;
+        } else if (profiler->soundTimes[i] < profiler->gameTimes[2]) {
+            // overlay the renderDuration onto the profiler by subtracting the soundDuration.
+            renderDuration -= soundDuration;
+        }
+    }
+    profiler->numSoundTimes &= 0xFFFE;
+
+    
+    totalCPUReads[PROFILER_COUNT] -= totalCPUReads[perfIteration];
+    cpuTime = MIN(OS_CYCLES_TO_USEC(taskStart + levelScriptDuration + renderDuration), 66666);
+    totalCPUReads[perfIteration] = cpuTime;
+    totalCPUReads[PROFILER_COUNT] += cpuTime;
+    totalCPUReads[PROFILER_COUNT + 1] = totalCPUReads[PROFILER_COUNT] / PROFILER_COUNT;
+    totalRSPReads[PROFILER_COUNT] -= totalRSPReads[perfIteration];
+    totalRSPReads[perfIteration] = OS_CYCLES_TO_USEC(profiler->gfxTimes[1] - profiler->gfxTimes[0]);
+    totalRSPReads[PROFILER_COUNT] += OS_CYCLES_TO_USEC(profiler->gfxTimes[1] - profiler->gfxTimes[0]);
+    totalRDPReads[PROFILER_COUNT] -= totalRDPReads[perfIteration];
+    totalRDPReads[perfIteration] = OS_CYCLES_TO_USEC(profiler->gfxTimes[2] - profiler->gfxTimes[0]);
+    totalRDPReads[PROFILER_COUNT] += OS_CYCLES_TO_USEC(profiler->gfxTimes[2] - profiler->gfxTimes[0]);
+    totalRSPReads[PROFILER_COUNT + 1] = totalRSPReads[PROFILER_COUNT] / PROFILER_COUNT;
+    totalRDPReads[PROFILER_COUNT + 1] = totalRDPReads[PROFILER_COUNT] / PROFILER_COUNT;
+    calculate_and_update_fps();
+    func_80057A50(32, 32, "FPS:", (s32) gFPS);
+    func_80057A50(32, 44, "CPU:", (u32) totalCPUReads[PROFILER_COUNT + 1]);
+    func_80057A50(32, 56, "RSP:", (u32) totalRSPReads[PROFILER_COUNT + 1]);
+    func_80057A50(32, 68, "RDP:", (u32) totalRDPReads[PROFILER_COUNT + 1]);
+
+    perfIteration++;
+    if (perfIteration == PROFILER_COUNT) {
+        perfIteration = 0;
+    }
+    
+}
+
 /**
  * @brief
  *
@@ -542,6 +634,46 @@ void setup_game_memory(void) {
 void game_init_clear_framebuffer(void) {
     gGamestateNext = 0; // = START_MENU_FROM_QUIT?
     clear_framebuffer(0);
+}
+
+s32 calculate_updaterate(void) {
+    static u32 prevtime = 0;
+    static u32 remainder = 0;
+    static u32 gSkipUpdate;
+    s32 total;
+    s32 rate;
+
+    u32 now = osGetCount();
+    if (gSkipUpdate) {
+        remainder = 0;
+        rate = 1;
+        gSkipUpdate = FALSE;
+    } else {
+        if (now > prevtime) {
+            total = (now - prevtime) + remainder;
+        } else {
+                // Counter has reset since last time
+            total = (0xffffffff - prevtime) + 1 + now + remainder;
+        }
+
+        if (total < (OS_CPU_COUNTER / 30)) { // 30-60 fps
+            rate = 1;
+        } else if (total < (OS_CPU_COUNTER / 20)) { // 20-30 fps
+            rate = 2;
+        } else {
+            rate = 3;
+        }
+
+        remainder = total - rate * (OS_CPU_COUNTER / 60);
+    }
+
+    prevtime = now;
+
+    if (gGamestate != RACING) {
+        gSkipUpdate = TRUE;
+    }
+
+    return rate;
 }
 
 void race_logic_loop(void) {
@@ -564,10 +696,8 @@ void race_logic_loop(void) {
         sNumVBlanks = 1;
     }
     func_802A4EF4();
-
     switch(gActiveScreenMode) {
         case SCREEN_MODE_1P:
-            gTickSpeed = 2;
             staff_ghosts_loop();
             if (gIsGamePaused == 0) {
                 for (i = 0; i < gTickSpeed; i++) {
@@ -593,6 +723,8 @@ void race_logic_loop(void) {
             profiler_log_thread5_time(LEVEL_SCRIPT_EXECUTE);
             D_8015F788 = 0;
             func_802A59A4();
+
+            render_profiler();
             if (!gEnableDebugMode) {
                 D_800DC514 = FALSE;
             } else {
@@ -629,11 +761,6 @@ void race_logic_loop(void) {
             break;
 
         case SCREEN_MODE_2P_SPLITSCREEN_VERTICAL:
-            if (gCurrentCourseId == COURSE_DK_JUNGLE) {
-                gTickSpeed = 3;
-            } else {
-                gTickSpeed = 2;
-            }
             if (gIsGamePaused == 0) {
                     for (i = 0; i < gTickSpeed; i++) {
                         if (D_8015011E != 0) {
@@ -656,6 +783,7 @@ void race_logic_loop(void) {
                 }
                 func_8005A070();
                 profiler_log_thread5_time(LEVEL_SCRIPT_EXECUTE);
+                render_profiler();
                 sNumVBlanks = 0;
                 move_segment_table_to_dmem();
                 init_rdp();
@@ -673,13 +801,6 @@ void race_logic_loop(void) {
             break;
 
         case SCREEN_MODE_2P_SPLITSCREEN_HORIZONTAL:
-
-            if (gCurrentCourseId == COURSE_DK_JUNGLE) {
-                gTickSpeed = 3;
-            } else {
-                gTickSpeed = 2;
-            }
-
             if (gIsGamePaused == 0) {
                     for (i = 0; i < gTickSpeed; i++) {
                         if (D_8015011E != 0) {
@@ -720,34 +841,6 @@ void race_logic_loop(void) {
             break;
 
         case SCREEN_MODE_3P_4P_SPLITSCREEN:
-            if (gPlayerCountSelection1 == 3) {
-                switch(gCurrentCourseId) {
-                    case COURSE_BOWSER_CASTLE:
-                    case COURSE_MOO_MOO_FARM:
-                    case COURSE_SKYSCRAPER:
-                    case COURSE_DK_JUNGLE:
-                        gTickSpeed = 3;
-                        break;
-                    default:
-                        gTickSpeed = 2;
-                        break;
-                }
-            } else {
-                // Four players
-                switch(gCurrentCourseId) {
-                    case COURSE_BLOCK_FORT:
-                    case COURSE_DOUBLE_DECK:
-                    case COURSE_BIG_DONUT:
-                        gTickSpeed = 2;
-                        break;
-                    case COURSE_DK_JUNGLE:
-                        gTickSpeed = 4;
-                        break;
-                    default:
-                        gTickSpeed = 3;
-                        break;
-                }
-            }
             if (gIsGamePaused == 0) {
                 for (i = 0; i < gTickSpeed; i++) {
                     if (D_8015011E != 0) {
@@ -1169,6 +1262,7 @@ void thread5_game_loop(UNUSED void *arg) {
     func_800C5CB8();
 
     while(TRUE) {
+        gTickSpeed = calculate_updaterate();
         func_800CB2C4();
 
         // Update the gamestate if it has changed (racing, menus, credits, etc.).

@@ -1303,7 +1303,7 @@ Gfx D_0D0076F8[] = {
     gsDPSetAlphaCompare(G_AC_NONE),
     gsDPSetRenderMode(G_RM_OPA_SURF, G_RM_OPA_SURF2),
     gsDPSetBlendMask(0xFF),
-    gsDPSetColorDither(G_CD_DISABLE),
+    gsDPSetColorDither(G_CD_MAGICSQ),
     gsSPSetGeometryMode(G_SHADE | G_CULL_BACK),
     gsSPClearGeometryMode(G_LIGHTING),
     gsSPEndDisplayList(),

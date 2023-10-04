@@ -49,7 +49,7 @@ Gfx D_80284EE0[] = {
     gsDPSetTextureConvert(G_TC_FILT),
     gsDPSetCombineKey(G_CK_NONE),
     gsDPSetAlphaCompare(G_AC_NONE),
-    gsDPSetColorDither(G_CD_DISABLE),
+    gsDPSetColorDither(G_CD_MAGICSQ),
     gsDPSetColorDither(G_CD_MAGICSQ),
     gsDPSetRenderMode(G_RM_OPA_SURF, G_RM_OPA_SURF2),
     gsDPSetCombineMode(G_CC_SHADE, G_CC_SHADE),

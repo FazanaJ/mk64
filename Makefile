@@ -322,7 +322,7 @@ endif
 ASFLAGS = -march=vr4300 -mabi=32 -I include -I $(BUILD_DIR) --defsym F3DEX_GBI=1
 
 # Fills end of rom
-OBJCOPYFLAGS = --pad-to=0xC00000 --gap-fill=0xFF
+OBJCOPYFLAGS = --pad-to=0x101000 --gap-fill=0xFF
 
 LDFLAGS = -T undefined_syms.txt -T $(BUILD_DIR)/$(LD_SCRIPT) -Map $(BUILD_DIR)/$(TARGET).map --no-check-sections
 

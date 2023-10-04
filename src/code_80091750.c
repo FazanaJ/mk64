@@ -1553,7 +1553,7 @@ void func_80091B78(void) {
     }
 
     func_800B44BC();
-    osViSetSpecialFeatures(OS_VI_DITHER_FILTER_ON);
+    osViSetSpecialFeatures(OS_VI_DITHER_FILTER_OFF);
 }
 
 s32 func_80091D74(void) {
