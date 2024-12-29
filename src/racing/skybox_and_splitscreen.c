@@ -67,6 +67,8 @@ Vtx D_802B8A10[] = {
     { { { 0, 120, -1 }, 0, { 0, 0 }, { 0x00, 0xDC, 0x00, 0xFF } } },
 };
 
+extern s8 gPortFilled;
+
 void func_802A3730(struct UnkStruct_800DC5EC* arg0) {
     s32 ulx;
     s32 uly;
@@ -94,6 +96,12 @@ void func_802A3730(struct UnkStruct_800DC5EC* arg0) {
 
     screenStartX /= 4;
     screenStartY /= 4;
+
+    /*if (screenWidth == SCREEN_WIDTH && screenHeight == SCREEN_HEIGHT) {
+        gPortFilled = true;
+    } else {
+        gPortFilled = false;
+    }*/
 
     lrx = screenStartX + screenWidth;
     if (lrx > SCREEN_WIDTH) {
@@ -227,9 +235,9 @@ void init_rdp(void) {
     gDPSetAlphaCompare(gDisplayListHead++, G_AC_NONE);
     gDPSetRenderMode(gDisplayListHead++, G_RM_OPA_SURF, G_RM_OPA_SURF2);
     gDPSetBlendMask(gDisplayListHead++, 0xFF);
-    gDPSetColorDither(gDisplayListHead++, G_CD_DISABLE);
+    gDPSetColorDither(gDisplayListHead++, G_CD_MAGICSQ);
     gDPPipeSync(gDisplayListHead++);
-    gSPClipRatio(gDisplayListHead++, FRUSTRATIO_1);
+    gSPClipRatio(gDisplayListHead++, FRUSTRATIO_2);
 }
 
 UNUSED void func_802A40A4(void) {
@@ -272,8 +280,10 @@ void select_framebuffer(void) {
                                             GPACK_RGBA5551(D_800DC5D0, D_800DC5D4, D_800DC5D8, 1));
     gDPPipeSync(gDisplayListHead++);
     gDPSetScissor(gDisplayListHead++, G_SC_NON_INTERLACE, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
-    gDPFillRectangle(gDisplayListHead++, 0, 0, SCREEN_WIDTH - 1, SCREEN_HEIGHT - 1);
-    gDPPipeSync(gDisplayListHead++);
+    //if (gGamestate != RACING || gPortFilled == false) {
+        gDPFillRectangle(gDisplayListHead++, 0, 0, SCREEN_WIDTH - 1, SCREEN_HEIGHT - 1);
+        gDPPipeSync(gDisplayListHead++);
+    //}
     gDPSetCycleType(gDisplayListHead++, G_CYC_1CYCLE);
 }
 
